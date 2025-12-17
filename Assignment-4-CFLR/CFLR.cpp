@@ -49,8 +49,23 @@ void CFLR::solve()
     //  - otherwise, conservatively produce Copy.
     // Replace/add rules here to match the actual CFL grammar for your analysis.
     auto combineLabels = [](EdgeLabel l1, EdgeLabel l2) -> EdgeLabel {
-        if (l1 == l2) return l1;
-        return static_cast<EdgeLabel>(Copy);
+        // Rule 1: Copy transitive closure
+        // Copy + Copy -> Copy
+        if (l1 == Copy && l2 == Copy)
+            return Copy;
+
+        // Rule 2: PointsTo propagation
+        // Copy + PointsTo -> PointsTo
+        if (l1 == Copy && l2 == PointsTo)
+            return PointsTo;
+
+        // Rule 3: Address-of handling (if Addr exists in graph initialization)
+        // Copy + Addr -> PointsTo
+        if (l1 == Copy && l2 == Addr)
+            return PointsTo;
+
+        // Return invalid label if no rule matches
+        return (EdgeLabel)-1;
     };
 
     // Get maps
@@ -86,10 +101,14 @@ void CFLR::solve()
                 EdgeLabel lab2 = lblTargets.first;
                 const auto &wset = lblTargets.second;
                 EdgeLabel newLab = combineLabels(lab, lab2);
-                for (unsigned w : wset) {
-                    if (!graph->hasEdge(u, w, newLab)) {
-                        graph->addEdge(u, w, newLab);
-                        workList.push(CFLREdge(u, w, newLab));
+                
+                // Check if the combination produced a valid label
+                if (newLab != (EdgeLabel)-1) {
+                    for (unsigned w : wset) {
+                        if (!graph->hasEdge(u, w, newLab)) {
+                            graph->addEdge(u, w, newLab);
+                            workList.push(CFLREdge(u, w, newLab));
+                        }
                     }
                 }
             }
@@ -103,10 +122,14 @@ void CFLR::solve()
                 EdgeLabel lab1 = lblSrcs.first;
                 const auto &xset = lblSrcs.second;
                 EdgeLabel newLab = combineLabels(lab1, lab);
-                for (unsigned x : xset) {
-                    if (!graph->hasEdge(x, v, newLab)) {
-                        graph->addEdge(x, v, newLab);
-                        workList.push(CFLREdge(x, v, newLab));
+                
+                // Check if the combination produced a valid label
+                if (newLab != (EdgeLabel)-1) {
+                    for (unsigned x : xset) {
+                        if (!graph->hasEdge(x, v, newLab)) {
+                            graph->addEdge(x, v, newLab);
+                            workList.push(CFLREdge(x, v, newLab));
+                        }
                     }
                 }
             }
